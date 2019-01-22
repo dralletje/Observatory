@@ -1,16 +1,21 @@
 {
   "name": "jest-observatory",
   "version": "1.0.0",
-  "description": "",
+  "description": "Run jest in the highest possible isolation",
   "main": "src/Observatory.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Michiel Dral <m.c.dral@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dralletje/jest-observatory.git"
+  },
   "license": "ISC",
   "dependencies": {
     "chalk": "^2.4.2",
     "lodash": "^4.17.11",
-    "moment": "^2.23.0"
+    "moment": "^2.23.0",
+    "node-fetch": "^2.3.0"
   }
 }

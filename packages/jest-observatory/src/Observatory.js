@@ -1,11 +1,18 @@
+// Not my normal way to do it, but I need to make sure that
+// Timestone is important before everything else, so it can mock the dates
 let { timestone } = require('./Timestone.js');
 let { JournalCollection } = require('./Journal.js');
 
-const moment = require('moment');
-const chalk = require('chalk');
+let moment = require('moment');
+let chalk = require('chalk');
 
 // const ISODate = x => new Date(x);
 // const NumberLong = x => Number(x);
+
+const useful_times = {
+  // It's actually a monday with is super helpful as well
+  ten_am_januari_first_2018: new Date("2018-01-01T10:00:00.000Z").getTime(),
+};
 
 global.jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000; // 10 second timeout
 
@@ -17,6 +24,52 @@ const Observatory = {
   snapshot: () => my_journals.snapshot(),
   marker: ({ title }) => marker_journal.push({ title }),
   Journal: (name) => my_journals.define_chapter(name),
+
+  match_observations: async () => {
+    let snapshot_data = Observatory.snapshot();
+
+    let errors_before = expect.getState().suppressedErrors.length;
+    expect(snapshot_data).toMatchSnapshot();
+    let errors_after = expect.getState().suppressedErrors;
+
+    if (errors_before !== errors_after.length) {
+      let last_error = errors_after[errors_after.length - 1];
+
+      // Update the stack for a nicer message
+      // NOTE Disable when jest gives weird results
+      last_error.message = last_error.message.replace(/expect\((.*)\)\.toMatchSnapshot\((.*)\)/, `Observatory.match_observations()`);
+      last_error.stack = last_error.stack.replace(/at [^(]+ \([^)]+\)\n/, '')
+
+      // Send new snapshot to observatory server
+      try {
+        let current_test = expect.getState();
+        let { currentTestName, snapshotState } = current_test;
+        let { _snapshotPath, _counters } = snapshotState;
+        let counter = _counters.get(currentTestName)
+        let snapshotName = `${currentTestName} ${counter}`;
+
+        // jest.resetModules();
+        jest.unmock('node-fetch');
+        let fetch = jest.requireActual('node-fetch');
+
+        let response = await fetch(`http://localhost:4000/api`, {
+          method: 'post',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            method: 'live_test_result',
+            data: {
+              snapshot_path: _snapshotPath,
+              snapshot_name: snapshotName,
+              snapshot_data: snapshot_data,
+            },
+          }),
+        });
+        let result = await response.json();
+      } catch (err) {
+        // console.log(`!!! err:`, err)
+      }
+    }
+  },
 
   add_less_precise_date_serializer: () => {
     // Take the milliseconds part of a date
@@ -48,6 +101,7 @@ const Observatory = {
     });
   },
 
+  // use `yield Observatory.Forward_Time(x)` to move to a certain point in time
   Forward_Time: duration => {
     return {
       type: Observatory.Forward_Time,
@@ -63,7 +117,7 @@ const Observatory = {
 
   test: generator => {
     return async () => {
-      timestone.activate();
+      timestone.activate(useful_times.ten_am_januari_first_2018);
       my_journals.clear();
 
       const simulation = generator();
@@ -92,16 +146,6 @@ const Observatory = {
           // `yield` being used as `await` here
           // Going to propage that and just await the result
           next = simulation.next(await result);
-        } else if (result.type === Observatory.SetImmediate) {
-
-          // Just in case I need another SetImmediate
-          await new Promise(yell => {
-            setImmediate.__original(() => {
-              yell()
-            }, 0);
-          });
-          next = null;
-
         } else if (result.type === Observatory.Forward_Time) {
 
           const date_to = moment().add(result.duration).toDate();

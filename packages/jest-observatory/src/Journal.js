@@ -1,11 +1,15 @@
 let { flatten, sortBy } = require("lodash");
+let EventEmitter = require('events')
 
 let precondition = (condition, message = `Unmet precondition`) => {
   if (!condition) throw new Error(message);
 };
 
-class Journal {
+class Journal extends EventEmitter {
+  // Use my own EventEmitter so I can check on what valid events are
+
   constructor(name) {
+    super();
     this.changes = [];
     this.name = name;
   }
@@ -46,6 +50,7 @@ class Journal {
 
   clear() {
     this.changes = [];
+    this.emit('clear');
   }
 }
 

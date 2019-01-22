@@ -1,12 +1,5 @@
 let { sortBy } = require("lodash");
 
-const useful_times = {
-  // It's actually a monday with is super helpful as well
-  ten_am_januari_first_2018: new Date("2018-01-01T10:00:00.000Z").getTime(),
-};
-
-// '2017-07-27T21:29:45.301'
-const base_time_timestamp = useful_times.ten_am_januari_first_2018;
 const Original_Date = Date;
 
 const Mock_Date = Object.assign(
@@ -14,11 +7,15 @@ const Mock_Date = Object.assign(
     return new Original_Date(value);
   },
   {
-    mocked_current_time: base_time_timestamp,
+    mocked_current_time: null,
     now: () => {
-      const time = Mock_Date.mocked_current_time;
-      Mock_Date.mocked_current_time = time + 1;
-      return time;
+      if (Mock_Date.active) {
+        const time = Mock_Date.mocked_current_time;
+        Mock_Date.mocked_current_time = time + 1;
+        return time;
+      } else {
+        return Original_Date.now();
+      }
     },
 
     UTC: Original_Date.UTC,
@@ -26,7 +23,6 @@ const Mock_Date = Object.assign(
     __original: Original_Date,
   }
 );
-global.Date = Mock_Date;
 
 /*:flow
 type TTimer = {
@@ -42,6 +38,8 @@ class TimeStone {
   constructor(obj) {
     this.initial_id = 1;
     this.mocked_timers = [] /*: Array<TTimer>*/;
+    this.active = false;
+
     // this.mocked_nextTicks = [];
 
     this.mocks = {
@@ -85,8 +83,6 @@ class TimeStone {
       },
     };
 
-    this.active = false;
-
     this.original_functions = {};
     Object.entries(this.mocks).forEach(([key, mockFn]) => {
       if (typeof mockFn !== "function") {
@@ -106,12 +102,17 @@ class TimeStone {
     });
   }
 
-  activate() {
+  activate(base_time) {
     this.active = true;
-    Mock_Date.mocked_current_time = base_time_timestamp;
+    Mock_Date.active = true;
+    Mock_Date.mocked_current_time = base_time;
   }
   deactivate() {
     this.active = false;
+    Mock_Date.active = false;
+
+    this.mocked_timers = [];
+    this.initial_id = 1;
   }
 
   async mock_forward_time(to_date, time_changed_callback) {
@@ -150,7 +151,7 @@ class TimeStone {
       });
 
       // Retry this method, either executing the next timer or ending
-      return this.mock_forward_time(to_date);
+      return this.mock_forward_time(to_date, time_changed_callback);
     } else {
       // Send last time change to the callback
       if (typeof time_changed_callback === 'function') {
@@ -165,6 +166,12 @@ class TimeStone {
   }
 }
 
-let timestone = new TimeStone(global);
-
-module.exports = { TimeStone, timestone }
+// Just in case this module gets re-required
+if (global.Date.__timestone__) {
+  module.exports = { TimeStone, timestone: global.Date.__timestone__ };
+} else {
+  global.Date = Mock_Date;
+  let timestone = new TimeStone(global);
+  global.Date.__timestone__ = timestone
+  module.exports = { TimeStone, timestone }
+}
