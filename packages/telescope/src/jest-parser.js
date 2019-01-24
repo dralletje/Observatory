@@ -24,7 +24,7 @@ let parse_value = (text) => {
     };
   }
 
-  let number_match = text.match(/^\s*(\d+(.\d+))/);
+  let number_match = text.match(/^\s*(\d+(.\d+)?)/);
   if (number_match) {
     return {
       sub_value: Number(number_match[1]),
@@ -132,7 +132,7 @@ let parse_value = (text) => {
       throw new Error(`Unknown type '${type}'`);
     }
   } else {
-    // console.log(`text:\n`, chalk.red(text));
+    console.log(`text:\n`, chalk.red(text));
     throw new Error(`Idk man, I couldn't match`);
   }
 }

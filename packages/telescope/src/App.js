@@ -1,5 +1,5 @@
 import React from "react";
-import { mapValues, isEqual } from "lodash";
+import { mapValues, isEqual, groupBy } from "lodash";
 import io from "socket.io-client";
 
 import RenderChanges from "./RenderChanges.js";
@@ -126,7 +126,7 @@ let BrutalButton = ({ selected, onClick, children }) => {
       style={{
         userSelect: "none",
         cursor: "pointer",
-        padding: 5,
+        padding: 8,
         paddingLeft: 16,
         paddingRight: 16,
         borderRadius: 5,
@@ -246,18 +246,6 @@ class SnapshotBrowser extends React.Component {
   }
 }
 
-let RenderSnapshot = ({ path }) => {
-  return (
-    <ApiCall
-      method="retrieve_snapshot_content"
-      data={{ file_path: path.file, snapshot_name: path.snapshot }}
-      renderLoading={<div />}
-    >
-      {({ result: { snapshot } }) => <RenderChanges data={snapshot.content} />}
-    </ApiCall>
-  );
-};
-
 let NothingSelected = () => {
   return (
     <div style={{ padding: 20, fontSize: 24 }}>Select a snapshot to start</div>
@@ -266,18 +254,195 @@ let NothingSelected = () => {
 
 let Title = ({ supertitle, subtitle, title }) => {
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    <Flex column justifyContent="flex-start" shrink={0}>
       {supertitle && <b>{supertitle}</b>}
       {title && <span style={{ fontSize: 24 }}>{title}</span>}
       {subtitle && <b style={{ alignSelf: "flex-end" }}>{subtitle}</b>}
-    </div>
+    </Flex>
   );
+};
+
+let ChangesPanel = ({ path, live_results }) => {
+  if (!path.file || !path.snapshot) {
+    return <div>Cool</div>;
+  }
+
+  let key = `${path.file}:${path.snapshot}`;
+  let live_result_new = live_results[key];
+
+  return (
+    <ApiCall
+      method="retrieve_snapshot_content"
+      data={{ file_path: path.file, snapshot_name: path.snapshot }}
+      renderLoading={<div />}
+    >
+      {({ result: { snapshot, live_result: live_result_old } }) => (
+        <ChangesPanelFetched
+          path={path}
+          snapshot={snapshot}
+          live_result={live_result_new ? live_result_new.changes : live_result_old}
+        />
+      )}
+    </ApiCall>
+  );
+};
+
+let Flex = ({
+  column,
+  row,
+  justifyContent,
+  alignItems,
+  shrink,
+  wrap,
+  style,
+  ...props
+}) => {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: column ? "column" : "row",
+        flexShrink: shrink,
+        flexWrap: wrap,
+        justifyContent,
+        alignItems,
+        ...style,
+      }}
+      {...props}
+    />
+  );
+};
+let Whitespace = ({ height, width }) => {
+  return <div style={{ minHeight: height, minWidth: width }} />;
+};
+
+let if_selected = (id, filter, if_selected = true, if_not_selected = false) => {
+  if (filter.includes(id)) {
+    return if_selected;
+  } else {
+    return if_not_selected;
+  }
+};
+
+class ChangesPanelFetched extends React.Component {
+  state = {
+    collection_filter: [],
+  }
+
+  render() {
+    let { collection_filter } = this.state;
+    let { path, snapshot, live_result } = this.props;
+
+    console.log(`snapshot:`, snapshot);
+    console.log(`live_result:`, live_result)
+
+    let data = [...snapshot.content, ...(live_result || [])];
+    let groups = groupBy(data, (change) => change.collectionName);
+    let group_names = Object.keys(groups).filter(
+      (x) => x !== "time" && x !== "markers"
+    );
+
+    return (
+      <Flex column>
+        <Whitespace height={20} />
+
+        <Title title={path.snapshot} />
+
+        <Whitespace height={16} />
+
+        <Flex row wrap="wrap" shrink={0}
+          style={{
+            marginLeft: -10,
+            marginRight: -10,
+          }}
+        >
+          {group_names.map((key) => (
+            <div
+              key={key}
+              style={{
+                marginLeft: 10,
+                marginRight: 10,
+                borderRadius: 5,
+                padding: 7,
+                backgroundColor: if_selected(
+                  key,
+                  collection_filter,
+                  `#aaa`,
+                  `#eee`
+                ),
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                this.setState({
+                  collection_filter: if_selected(
+                    key,
+                    collection_filter,
+                    collection_filter.filter((x) => x !== key),
+                    [...collection_filter, key]
+                  ),
+                });
+              }}
+            >
+              {key}
+            </div>
+          ))}
+        </Flex>
+
+        <Flex row>
+          <Flex
+            column
+            // justifyContent
+            style={{
+              minWidth: 400,
+              width: 400,
+            }}
+          >
+            <Whitespace height={20} />
+            {path && path.snapshot ? (
+              <>
+                <Title supertitle="original" />
+                <Whitespace height={20} />
+                <RenderChanges data={snapshot.content} collection_filter={collection_filter} />
+              </>
+            ) : (
+              <NothingSelected />
+            )}
+          </Flex>
+
+          <Whitespace width={16} />
+
+          <Flex
+            column
+            style={{
+              minWidth: 400,
+              width: 400,
+            }}
+          >
+            <Whitespace height={20} />
+            <Title supertitle="live" />
+            <Whitespace height={20} />
+            {live_result ? (
+              isEqual(snapshot.content, live_result) ? (
+                <div style={{ textAlign: 'center', padding: 16, backgroundColor: 'rgb(0, 115, 1)', color: 'white' }}>Test matches!</div>
+              ) : (
+                <RenderChanges data={live_result} original={snapshot.content} collection_filter={collection_filter} />
+              )
+            ) : (
+              <div>
+                Test results will flow in here as you run this test in jest
+              </div>
+            )}
+          </Flex>
+        </Flex>
+      </Flex>
+    );
+  }
 };
 
 class App extends React.Component {
   state = {
     path: selected_file.get(),
-    live_result: null,
+    live_results: {},
   };
 
   componentDidUpdate(_, prevState) {
@@ -287,7 +452,7 @@ class App extends React.Component {
   }
 
   render() {
-    const { path, live_result } = this.state;
+    const { path, live_results } = this.state;
 
     console.log(`path:`, path);
 
@@ -306,11 +471,18 @@ class App extends React.Component {
               data.snapshot_path === path.file &&
               data.snapshot_name === path.snapshot
             ) {
-              console.log(`data:`, data);
+              let key = `${data.snapshot_path}:${data.snapshot_name}`;
               this.setState({
-                live_result: { changes: data.snapshot_data },
+                live_results: {
+                  ...live_results,
+                  [key]: {
+                    changes: data.snapshot_data,
+                  },
+                },
               });
             } else {
+              // TODO Save this in the background still
+              // .... (Or put it in the background on the server)
               // prettier-ignore
               console.log('Live result came in, but was not current file:', data);
             }
@@ -338,7 +510,7 @@ class App extends React.Component {
             justifyContent: "center",
           }}
         >
-          <div style={{ width: 400, minWidth: 300, paddingTop: 20 }}>
+          <div style={{ width: 300, minWidth: 200, paddingTop: 20 }}>
             <SnapshotBrowser
               selected={path}
               onSelected={(new_path) => {
@@ -351,6 +523,7 @@ class App extends React.Component {
 
           <div
             style={{
+              width: 800 + 16,
               flexShrink: 0,
               overflow: "auto",
               display: "flex",
@@ -358,42 +531,9 @@ class App extends React.Component {
               paddingRight: 10,
             }}
           >
-            <div
-              style={{
-                width: 400,
-              }}
-            >
-              <div style={{ minHeight: 20 }} />
-              {path && path.snapshot ? (
-                <>
-                  <Title supertitle="original" title={path.snapshot} />
-                  <RenderSnapshot path={path} />
-                </>
-              ) : (
-                <NothingSelected />
-              )}
-            </div>
-
-            <div style={{ minWidth: 16 }} />
-
-            <div
-              style={{
-                width: 400,
-              }}
-            >
-              <div style={{ minHeight: 20 }} />
-              <Title supertitle="live" title="Live test result" />
-              {live_result ? (
-                <RenderChanges data={live_result.changes} />
-              ) : (
-                <div>
-                  Test results will flow in here as you run this test in jest
-                </div>
-              )}
-            </div>
+            <ChangesPanel path={path} live_results={live_results} />
           </div>
         </div>
-        <div style={{ height: 50 }} />
       </div>
     );
   }

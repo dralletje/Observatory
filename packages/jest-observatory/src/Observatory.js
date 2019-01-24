@@ -5,6 +5,7 @@ let { JournalCollection } = require('./Journal.js');
 
 let moment = require('moment');
 let chalk = require('chalk');
+let { cloneDeepWith } = require('lodash');
 
 // const ISODate = x => new Date(x);
 // const NumberLong = x => Number(x);
@@ -20,8 +21,44 @@ let my_journals = new JournalCollection();
 let time_journal = my_journals.define_chapter('time');
 let marker_journal = my_journals.define_chapter('markers');
 
+let is_time_event = (event) => {
+  return event && event.collectionName === 'time' && event.type === 'forward';
+}
+
+let make_dates_less_precise = (object) => {
+  return cloneDeepWith(object, (val) => {
+    if (val instanceof Date && (val.getMilliseconds() !== 0 || val.getSeconds() !== 0)) {
+      let clone = new Date(val);
+      // if (clone.getSeconds() < 10) {
+      //   clone.setSeconds(0);
+      // }
+      clone.setSeconds(0);
+      clone.setMilliseconds(0);
+      return clone;
+    }
+  });
+}
+
 const Observatory = {
-  snapshot: () => my_journals.snapshot(),
+  snapshot: () => {
+    let eventlog = my_journals.snapshot();
+
+    // Filter out consecutive time events
+    let filtered_eventlog = [];
+    for (let event of eventlog) {
+      let [last_event, ...other_events] = filtered_eventlog;
+      if (is_time_event(event) && is_time_event(last_event)) {
+        last_event.change.to = event.change.to;
+      } else {
+        filtered_eventlog.unshift(event);
+      }
+    }
+    filtered_eventlog.reverse();
+
+    let with_less_precise_date = make_dates_less_precise(filtered_eventlog);
+
+    return with_less_precise_date;
+  },
   marker: ({ title }) => marker_journal.push({ title }),
   Journal: (name) => my_journals.define_chapter(name),
 
@@ -39,6 +76,7 @@ const Observatory = {
       // NOTE Disable when jest gives weird results
       last_error.message = last_error.message.replace(/expect\((.*)\)\.toMatchSnapshot\((.*)\)/, `Observatory.match_observations()`);
       last_error.stack = last_error.stack.replace(/at [^(]+ \([^)]+\)\n/, '')
+    }
 
       // Send new snapshot to observatory server
       try {
@@ -65,12 +103,17 @@ const Observatory = {
           }),
         });
         let result = await response.json();
+        console.log(`result:`, result)
       } catch (err) {
         // console.log(`!!! err:`, err)
       }
-    }
+    // }
   },
 
+  // This add a "serializer" to jest snapshots,
+  // so when a date inside a snapshot changes by only a coupe milliseconds,
+  // the matcher does not freak out and says "Nahh that's cool" instead.
+  // TODO Deprecate this in favor of doing this automatically in `Observatory.snapshot()`
   add_less_precise_date_serializer: () => {
     // Take the milliseconds part of a date
     expect.addSnapshotSerializer({
@@ -115,10 +158,24 @@ const Observatory = {
     };
   },
 
-  test: generator => {
+  test: (test_setup, generator) => {
+    if (generator == null) {
+      generator = test_setup;
+      test_setup = {}
+    }
+
+    test_setup = {
+      start_time: useful_times.ten_am_januari_first_2018,
+      timezone: 'GMT',
+      ...test_setup,
+    }
+
     return async () => {
-      timestone.activate(useful_times.ten_am_januari_first_2018);
-      my_journals.clear();
+      console.log(`test_setup.start_time:`, test_setup.start_time)
+      timestone.activate(test_setup.start_time);
+      my_journals.initialize({
+        timezone: test_setup.timezone,
+      });
 
       const simulation = generator();
 
@@ -156,8 +213,8 @@ const Observatory = {
           await timestone.mock_forward_time(date_to, ({ from, to }) => {
             time_journal.push({
               type: 'forward',
-              from: from,
-              to: to,
+              from: new Date(from),
+              to: new Date(to),
             });
           });
           console.log(chalk.red('[FORWARDING TIME]'), chalk.dim('ended on'), new Date());

@@ -1,19 +1,20 @@
 import React from "react";
 import JSONTree from "react-json-tree";
-import { groupBy } from "lodash";
+import { groupBy, isEqual } from "lodash";
 import moment from "moment";
+
+import "moment-timezone";
 
 import { State } from "./MetaComponents";
 
 let TimeChange = ({ change }) => {
-  console.log(`change.change:`, change.change)
   let diff = moment(change.change.from).to(moment(change.change.to));
   let better_diff = diff.replace(/^in\s*/, "");
 
   return (
     <div
       style={{
-        paddingTop: 20,
+        paddingBottom: 20,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -30,18 +31,35 @@ let TimeChange = ({ change }) => {
 
 let CollectionItem = ({ change, collection_filter, base_time }) => {
   if (change.collectionName === "time") {
-    return <TimeChange change={change} />;
+    if (change.type === 'start') {
+      return (
+        <div
+          style={{
+            border: "solid 2px black",
+            borderRadius: 5,
+            padding: 10,
+            marginBottom: 20,
+          }}
+        >
+          <b>{moment(change.at).tz(base_time.tz()).format("dddd, MMMM Do YYYY, h:mm:ss a")}</b><br />
+          in timezone <b>{change.change.timezone}</b>
+        </div>
+      );
+    }
+    if (change.type === 'forward') {
+      return <TimeChange change={change} />;
+    }
   }
 
   if (change.collectionName === "markers") {
     return (
       <div
         style={{
-          backgroundColor: "#ffd7d7",
+          border: "solid 2px black",
           fontWeight: 'bold',
           borderRadius: 5,
           padding: 10,
-          marginTop: 20,
+          marginBottom: 20,
           display: "flex",
           flexDirection: "row",
           justifyContent: "center",
@@ -58,7 +76,7 @@ let CollectionItem = ({ change, collection_filter, base_time }) => {
         <div
           className={`box col-${change.collectionName}`}
           style={{
-            marginTop: 20,
+            marginBottom: 20,
             backgroundColor: `rgb(0, 43, 54)`,
             padding: 10,
             borderRadius: 5,
@@ -73,8 +91,8 @@ let CollectionItem = ({ change, collection_filter, base_time }) => {
               textAlign: "right",
             }}
           >
-            Day {moment(change.at).dayOfYear() - base_time.dayOfYear() + 1}{" "}
-            {moment(change.at).format(`HH:mm`)}
+            Day {moment(change.at).tz(base_time.tz()).dayOfYear() - base_time.dayOfYear() + 1}{" "}
+            {moment(change.at).tz(base_time.tz()).format(`HH:mm`)}
           </div>
 
           <div
@@ -121,27 +139,32 @@ let if_selected = (id, filter, if_selected = true, if_not_selected = false) => {
 };
 
 class RenderChanges extends React.Component {
-  constructor() {
-    super();
-    this.state = {
-      collection_filter: [],
-    };
-  }
-
   render() {
-    let { collection_filter } = this.state;
-    let { data } = this.props;
+    let { data, original, collection_filter } = this.props;
 
-    let base_time = moment(1500884100000);
-    if (data[0].type === "start") {
-      base_time = moment(data[0].at);
-      data = data.slice(1);
+    let timezone = 'GMT';
+    let base_time = moment(1500884100000).tz(timezone);
+    if (data[0].collectionName === 'time' && data[0].type === "start") {
+      timezone = (data[0].change && data[0].change.timezone) || 'GMT';
+      base_time = moment(data[0].at).tz(timezone);
     }
 
-    let groups = groupBy(data, (change) => change.collectionName);
-    let group_names = Object.keys(groups).filter(
-      (x) => x !== "time" && x !== "markers"
-    );
+    if (original && !isEqual(original[0], data[0])) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ backgroundColor: 'rgb(144, 0, 0)', padding: 12, color: 'white', textAlign: 'center', marginBottom: 20 }}>
+            <b>!! Timezone or start date changed !!</b><br />
+            Showing diff here is going to be hard.
+          </div>
+
+          <CollectionItem
+            change={data[0]}
+            base_time={base_time}
+            collection_filter={[]}
+          />
+        </div>
+      );
+    }
 
     return (
       <div
@@ -150,53 +173,22 @@ class RenderChanges extends React.Component {
           flexDirection: "column",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "wrap",
-            marginTop: 10,
-          }}
-        >
-          {group_names.map((key) => (
-            <div
-              key={key}
-              style={{
-                margin: 10,
-                borderRadius: 5,
-                padding: 7,
-                backgroundColor: if_selected(
-                  key,
-                  collection_filter,
-                  `#aaa`,
-                  `#eee`
-                ),
-                cursor: "pointer",
-              }}
-              onClick={() => {
-                this.setState({
-                  collection_filter: if_selected(
-                    key,
-                    collection_filter,
-                    collection_filter.filter((x) => x !== key),
-                    [...collection_filter, key]
-                  ),
-                });
-              }}
-            >
-              {key}
-            </div>
-          ))}
-        </div>
-
         {data.map((change, i) => (
-          <CollectionItem
+          <div
             key={i}
-            change={change}
-            base_time={base_time}
-            collection_filter={collection_filter}
-          />
+            style={{
+              opacity: original && isEqual(change, original[i]) ? 0.1 : 1,
+            }}
+          >
+            <CollectionItem
+              change={change}
+              base_time={base_time}
+              collection_filter={collection_filter}
+            />
+          </div>
         ))}
+
+        <div style={{ height: 50 }} />
       </div>
     );
   }

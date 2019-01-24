@@ -1,5 +1,5 @@
 {
-  "name": "jest-observatory",
+  "name": "@observatory/jest",
   "version": "1.0.0",
   "description": "Run jest in the highest possible isolation",
   "main": "src/Observatory.js",

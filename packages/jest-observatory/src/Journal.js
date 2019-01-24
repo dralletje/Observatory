@@ -76,13 +76,15 @@ class JournalCollection {
     ];
   }
 
-  clear() {
+  initialize({ timezone = 'GMT' } = {}) {
     this.journals.forEach((x) => x.clear());
     this.creation = {
-      change: null,
+      change: {
+        timezone: timezone,
+      },
       at: new Date(),
       type: "start",
-      collectionName: "@system@",
+      collectionName: "time",
     };
   }
 }

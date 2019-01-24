@@ -105,7 +105,7 @@ class TimeStone {
   activate(base_time) {
     this.active = true;
     Mock_Date.active = true;
-    Mock_Date.mocked_current_time = base_time;
+    Mock_Date.mocked_current_time = Number(base_time);
   }
   deactivate() {
     this.active = false;

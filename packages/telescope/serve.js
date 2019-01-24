@@ -37,6 +37,8 @@ let glob_promise = async (pattern, options) => {
   })
 }
 
+let LIVE_SNAPSHOT_RESULTS = {};
+
 app.use(express.static(__dirname + '/build'));
 
 let get_snapshots_from_file = (content) => {
@@ -54,11 +56,13 @@ let get_snapshots_from_file = (content) => {
 
 let api = {
   list_files: async (body) => {
+    console.log(chalk.blue(`> Searching '**/*.snap' in '${globroot}'`));
     let files = await glob_promise("**/*.snap", {
       root: globroot,
       cwd: globroot,
       ignore: 'node_modules/**',
     });
+    console.log(chalk.blue(`> Files found: ${files.join(', ')}`))
     return { files };
   },
   list_snapshots_in_file: async ({ file_path }) => {
@@ -71,6 +75,8 @@ let api = {
     return { snapshots };
   },
   retrieve_snapshot_content: async ({ file_path, snapshot_name }) => {
+    let cache_key = `${file_path}:${snapshot_name}`;
+
     let real_path = path.join(globroot, file_path);
     let content = (await fs.readFile(real_path)).toString();
 
@@ -80,14 +86,18 @@ let api = {
     if (snapshot == null) {
       throw new Error(`Snapshot not found!`);
     } else {
-      return { snapshot };
+      return { snapshot, live_result: LIVE_SNAPSHOT_RESULTS[cache_key] };
     }
   },
-  live_test_result: ({ snapshot_path, snapshot_name, snapshot_data }) => {
+  live_test_result: ({ snapshot_path: absolute_path, snapshot_name, snapshot_data }) => {
     console.log(chalk.green(`> Received test results for '${snapshot_name}'`));
 
+    let snapshot_path = path.relative(globroot, absolute_path);
+    let key = `${snapshot_path}:${snapshot_name}`;
+    LIVE_SNAPSHOT_RESULTS[key] = snapshot_data;
+
     io.emit('live_test_result', {
-      snapshot_path: path.relative(globroot, snapshot_path),
+      snapshot_path: snapshot_path,
       snapshot_name: snapshot_name,
       snapshot_data: snapshot_data,
     });
@@ -116,5 +126,6 @@ app.post('/api', express.json(), async (req, res) => {
 
 let port = process.env.PORT || 4000;
 server.listen(port, () => {
-  console.log(chalk.green(`> Server running on port ${port} 🚀`));
+  console.log(chalk.green(`> Server running on http://localhost:${port} 🚀`));
+  console.log(chalk.green(`> Directory: ${globroot}`));
 });
