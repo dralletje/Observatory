@@ -103,3 +103,15 @@ it('should run a sequence of timers correctly', Observatory.test(function*() {
     expect(round(timers_done[index], -3)).toEqual(seconds * 1000);
   }
 }));
+
+it('should run a short timer', Observatory.test(function*() {
+  // Set timer to 50 milliseconds
+  let timer_has_run = false;
+  setTimeout(() => {
+    timer_has_run = true;
+  }, 50);
+
+  yield Observatory.Forward_Time(100); // Forward for 100 milliseconds
+
+  expect(timer_has_run).toEqual(true);
+}));

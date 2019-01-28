@@ -26,25 +26,25 @@ let timers = (run) => {
 it.skip('should run all the timers perfectly', async () => {
   let jest_timers = [];
   timers((name) => {
-    jest_timers.push([name]);
+    jest_timers.push(`${name}`);
     timers((sub_name) => {
-      jest_timers.push([name, sub_name]);
+      jest_timers.push(`${name}:${sub_name}`);
     });
   });
 
   await new Promise((resolve) => {
-    setTimeout(resolve, 20);
+    setTimeout(resolve, 1000);
   });
 
   let observatory_timers = [];
   let observatory_test = Observatory.test(function*() {
     timers((name) => {
-      observatory_timers.push([name]);
+      observatory_timers.push(`${name}`);
       timers((sub_name) => {
-        observatory_timers.push([name, sub_name]);
+        observatory_timers.push(`${name}:${sub_name}`);
       });
     });
-    yield Observatory.Forward_Time(20);
+    yield Observatory.Forward_Time(1000);
   });
   await observatory_test();
 

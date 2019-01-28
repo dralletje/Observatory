@@ -133,7 +133,7 @@ class TimeStone {
     await this.run_microtasks();
 
     // Get the first timer that we need
-    let now = Math.min(to_date, Date.now());
+    let now = Math.min(to_date, Mock_Date.mocked_current_time);
     let timers_coming_up = this.mocked_timers.filter(
       (timer) => now + timer.projected_time <= to_date
     );
@@ -201,7 +201,7 @@ class TimeStone {
       return this.mock_forward_time(to_date, time_changed_callback);
     } else {
       // Update the current time and end
-      let time_increase = to_date.getTime() - Date.now();
+      let time_increase = to_date.getTime() - Mock_Date.mocked_current_time;
 
       this.mocked_timers = this.mocked_timers.map((timer) => {
         return {

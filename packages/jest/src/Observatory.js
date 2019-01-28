@@ -39,7 +39,11 @@ let make_dates_less_precise = (object) => {
   });
 };
 
+let observatory_log = (...args) => console.log(chalk.blue("[Observatory]"), ...args);
+
 const Observatory = {
+  currently_running_test_options: null,
+
   snapshot: () => {
     let eventlog = my_journals.snapshot();
 
@@ -111,140 +115,82 @@ const Observatory = {
     }
   },
 
-  // This add a "serializer" to jest snapshots,
-  // so when a date inside a snapshot changes by only a coupe milliseconds,
-  // the matcher does not freak out and says "Nahh that's cool" instead.
-  // TODO Deprecate this in favor of doing this automatically in `Observatory.snapshot()`
-  add_less_precise_date_serializer: () => {
-    // Take the milliseconds part of a date
-    expect.addSnapshotSerializer({
-      print(val, serialize, indent) {
-        const new_val = new Date(val);
-        new_val.setMilliseconds(0);
-        return serialize(new_val);
-      },
-
-      test(val) {
-        return val instanceof Date && val.getMilliseconds() !== 0;
-      },
-    });
-
-    // Take the milliseconds part of a number that really looks like a date...
-    // NOTE RISKYYYY
-    expect.addSnapshotSerializer({
-      print(val, serialize, indent) {
-        const new_val = new Date(val);
-        new_val.setMilliseconds(0);
-        return serialize(new_val.getTime());
-      },
-
-      test(val) {
-        let date = new Date(val);
-        return (
-          typeof val === "number" &&
-          date.getYear() === new Date().getYear() &&
-          date.getMilliseconds() !== 0
-        );
-      },
-    });
-  },
-
   // use `yield Observatory.Forward_Time(x)` to move to a certain point in time
-  Forward_Time: (duration) => {
-    return {
-      type: Observatory.Forward_Time,
-      duration: duration,
-    };
+  Forward_Time: async (duration) => {
+    let test_options = this.currently_running_test_options;
+
+    const moment_to = moment().add(duration);
+    // If this is set, we assume it's a macro move so we can discard the milliseconds
+    // which will give prettier results for longer processes
+    if (test_options.precise_timing === false) {
+      moment_to.milliseconds(0)
+    }
+    let date_to = moment_to.toDate();
+
+    const perf_now = Date.__original.now();
+    // prettier-ignore
+    observatory_log(chalk.dim('Forwarding time from'), new Date(), chalk.dim('to'), date_to);
+    await timestone.mock_forward_time(date_to, ({ from, to }) => {
+      time_journal.push({
+        type: "forward",
+        from: new Date(from),
+        to: new Date(to),
+      });
+    });
+    observatory_log(chalk.dim("Ended on"), new Date());
+
+    // Let me know if the performance has gone haywire
+    const perf_then = Date.__original.now();
+    const perf_seconds_spent = (perf_then - perf_now) / 1000;
+    if (perf_seconds_spent > 10) {
+      // prettier-ignore
+      observatory_log(chalk.red(`SLOW PERF`), chalk.dim(`for time fowarding, took`), perf_seconds_spent, chalk.dim(`seconds`));
+    }
   },
 
-  SetImmediate: () => {
-    return {
-      type: Observatory.SetImmediate,
-    };
-  },
-
-  test: (test_setup, generator) => {
+  test: (test_options, generator) => {
     if (generator == null) {
-      generator = test_setup;
-      test_setup = {};
+      generator = test_options;
+      test_options = {};
     }
 
-    test_setup = {
+    test_options = {
       start_time: useful_times.ten_am_januari_first_2018,
       timezone: "GMT",
-      log_forwarding: true,
-      ...test_setup,
+      precise_timing: true,
+      ...test_options,
     };
 
-    let observatory_log =
-      test_setup.log_forwarding === true
-        ? (...args) => console.log(chalk.blue("[Observatory]"), ...args)
-        : () => {};
-
+    // Return the actual test function
     return async () => {
-      timestone.activate(test_setup.start_time);
+      this.currently_running_test_options = test_options;
+      timestone.activate(test_options.start_time);
       my_journals.initialize({
-        timezone: test_setup.timezone,
+        timezone: test_options.timezone,
       });
 
       const simulation = generator();
 
+      //
       let next = simulation.next();
       while (next.done === false) {
+        // If the value is a promise, we await it.
+        // If it isn't, this doesn't hurt either.
         const result = await next.value;
 
-        // TODO Unsure if I need to have this
-        // .... I guess have it, but with less then 10 seconds?
-        // await timestone.mock_forward_time(
-        //   moment().add({ seconds: 10 }).toDate(),
-        // );
-
-        // This makes /sure/ that async/await and .then calls have
-        // all been resolved before moving on.
+        // This makes sure that all
+        // - Resolved promises
+        // - setImmediate(fn)-s
+        // - setTimeout(fn, 0)-s
+        // Are being handled and executed propertly before moving on.
         await timestone.mock_forward_time(new Date());
 
-        if (result == null) {
-          next = simulation.next(result);
-        } else if (typeof result.then === "function") {
-          // `yield` being used as `await` here
-          // Going to propage that and just await the result
-          next = simulation.next(await result);
-        } else if (result.type === Observatory.Forward_Time) {
-          // const date_to = moment().add(result.duration).toDate();
-          const date_to = moment()
-            .add(result.duration)
-            .milliseconds(0)
-            .toDate();
-
-          const perf_now = Date.__original.now();
-          // prettier-ignore
-          observatory_log(chalk.dim('Forwarding time from'), new Date(), chalk.dim('to'), date_to);
-          await timestone.mock_forward_time(date_to, ({ from, to }) => {
-            time_journal.push({
-              type: "forward",
-              from: new Date(from),
-              to: new Date(to),
-            });
-          });
-          observatory_log(chalk.dim("Ended on"), new Date());
-
-          // Let me know if the performance has gone haywire
-          const perf_then = Date.__original.now();
-          const duration = (perf_then - perf_now) / 1000;
-          if (duration > 10) {
-            // prettier-ignore
-            observatory_log(chalk.red(`SLOW PERF`), chalk.dim(`for time fowarding, took`), duration, chalk.dim(`seconds`));
-          }
-
-          next = simulation.next(result);
-        } else {
-          next = simulation.next(result);
-        }
-
-        await timestone.mock_forward_time(new Date());
+        // Go to next part of the test function
+        next = simulation.next(result);
       }
 
       timestone.deactivate();
+      this.currently_running_test_options = test_options;
     };
   },
 };
