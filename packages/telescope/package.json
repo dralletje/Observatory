@@ -1,6 +1,10 @@
 {
   "name": "@observatory/telescope",
   "version": "1.0.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Michiel Dral <m.c.dral@gmail.com>",
   "dependencies": {
     "@babel/parser": "^7.2.3",
     "chalk": "^2.4.2",
@@ -29,6 +33,10 @@
   },
   "bin": {
     "telescope": "./serve.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dralletje/observatory.git"
   },
   "devDependencies": {},
   "proxy": "http://localhost:4000",
