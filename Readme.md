@@ -96,3 +96,9 @@ As soon as you have a snapshot, run `./node_modules/.bin/telescope`. Browse to `
 Well if jest is not your favorite test framework, I don't know ;)  
 In all seriousness: no.  
 I only made a version that works with jest for now, as it kind of requires the snapshot matcher. Might expand into other testing frameworks when people want that.
+
+**Hey, maintainer here speaking to himself, how do I publish with Lerna if I have 2FA enabled?**
+
+```
+NPM_CONFIG_OTP=<code> lerna publish <patch|minor|major>
+```
