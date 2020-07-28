@@ -263,7 +263,7 @@ let Title = ({ supertitle, subtitle, title }) => {
 };
 
 let ChangesPanel = ({ path, live_results }) => {
-  if (!path.file || !path.snapshot) {
+  if (!path || !path.file || !path.snapshot) {
     return <div>Cool</div>;
   }
 
@@ -336,7 +336,19 @@ class ChangesPanelFetched extends React.Component {
     console.log(`snapshot:`, snapshot);
     console.log(`live_result:`, live_result)
 
-    let data = [...snapshot.content, ...(live_result || [])];
+    if (!Array.isArray(snapshot.content)) {
+      return (
+        <Flex column>
+          <Whitespace height={20} />
+          <Title title="Not actually an observatory snapshot" />
+        </Flex>
+      )
+    }
+
+    // TODO More checks on it if is a valid snapshot
+    let content = Array.isArray(snapshot.content) ? snapshot.content : [];
+
+    let data = [...content, ...(live_result || [])];
     let groups = groupBy(data, (change) => change.collectionName);
     let group_names = Object.keys(groups).filter(
       (x) => x !== "time" && x !== "markers"

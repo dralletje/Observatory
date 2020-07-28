@@ -1,0 +1,11 @@
+{
+  "name": "git-compare.fixture",
+  "version": "1.0.0",
+  "description": "",
+  "main": "example-test.js",
+  "scripts": {
+    "test": "npx jest example-test"
+  },
+  "author": "",
+  "license": "ISC"
+}

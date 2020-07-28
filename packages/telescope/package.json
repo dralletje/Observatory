@@ -32,7 +32,7 @@
     "postinstall": "SKIP_PREFLIGHT_CHECK=true npm run build"
   },
   "bin": {
-    "telescope": "./serve.js"
+    "telescope": "./server/app.js"
   },
   "repository": {
     "type": "git",
@@ -44,5 +44,14 @@
     "not dead",
     "not ie <= 11",
     "not op_mini all"
-  ]
+  ],
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      ".*.fixture"
+    ]
+  },
+  "devDependencies": {
+    "supertest": "^3.4.2"
+  }
 }

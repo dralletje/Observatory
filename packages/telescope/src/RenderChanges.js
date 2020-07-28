@@ -119,7 +119,10 @@ let CollectionItem = ({ change, collection_filter, base_time }) => {
                 hideRoot
                 data={change.change}
                 shouldExpandNode={(keyName, data, level) => {
-                  return level === 1 && keyName[0] === "body";
+                  return (
+                    (level === 1 && keyName[0] === "body")
+                    || (level === 1 && Object.keys(data).length <= 2)
+                  );
                 }}
               />
             </div>

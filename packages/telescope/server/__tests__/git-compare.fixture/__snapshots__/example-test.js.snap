@@ -1,0 +1,20 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`should match this snapshot 1`] = `
+Object {
+  "array_empty": Array [],
+  "array_numbers": Array [
+    1,
+    2,
+    3,
+  ],
+  "extra_key": null,
+  "null": null,
+  "number": 10,
+  "object": Object {
+    "**!!## weird-key $$%%^^": "Weird value 123,.;][';\`\`\`\`\`']",
+    "simple_key": "simple_value",
+  },
+  "object_empty": Object {},
+}
+`;

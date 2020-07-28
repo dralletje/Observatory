@@ -76,6 +76,12 @@ let parse_value = (text) => {
       let values = [];
       let inside_array = next_text.slice(matched_text.length);
       while (true) {
+        let array_end_match = inside_array.match(/^\s*\]\s*/);
+        if (array_end_match) {
+          inside_array = inside_array.slice(array_end_match[0].length);
+          break;
+        }
+
         let { sub_value, resulting_text } = parse_value(inside_array);
 
         values.push(sub_value);
@@ -84,15 +90,7 @@ let parse_value = (text) => {
         if (comma_match) {
           resulting_text = resulting_text.slice(comma_match[0].length);
         }
-
-        let array_end_match = resulting_text.match(/^\s*\]\s*/);
-        if (array_end_match) {
-          inside_array = resulting_text.slice(array_end_match[0].length);
-          break;
-        } else {
-          inside_array = resulting_text;
-          continue;
-        }
+        inside_array = resulting_text;
       }
       return {
         sub_value: values,
@@ -104,6 +102,12 @@ let parse_value = (text) => {
       let values = {};
       let inside_array = next_text.slice(matched_text.length);
       while (true) {
+        let array_end_match = inside_array.match(/^\s*\}\s*/);
+        if (array_end_match) {
+          inside_array = inside_array.slice(array_end_match[0].length);
+          break;
+        }
+
         // console.log(`inside_array:\n`, chalk.blue(inside_array));
         let { key, value, resulting_text } = parse_object_entry(inside_array);
 
@@ -114,14 +118,7 @@ let parse_value = (text) => {
           resulting_text = resulting_text.slice(comma_match[0].length);
         }
 
-        let array_end_match = resulting_text.match(/^\s*\}\s*/);
-        if (array_end_match) {
-          inside_array = resulting_text.slice(array_end_match[0].length);
-          break;
-        } else {
-          inside_array = resulting_text;
-          continue;
-        }
+        inside_array = resulting_text;
       }
 
       return {
@@ -160,7 +157,7 @@ if (module.parent == null) {
       "at": 2018-01-01T10:00:00.000Z,
       "change": Object {
         "path": "/jobs/match/try/offered",
-        "value": null,
+        "value": Array [],
       },
       "collectionName": "firebase",
       "type": "set",
@@ -221,6 +218,7 @@ if (module.parent == null) {
           "candidatedata": Object {
             "name": "Michiel Dral",
           },
+          "empty_object": Object {},
           "status": "in_progress",
         },
       },
